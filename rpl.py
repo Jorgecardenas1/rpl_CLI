@@ -3,6 +3,8 @@
 import os
 import sys
 import json
+import numpy as np
+
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
@@ -16,6 +18,7 @@ app = typer.Typer()
 # Local modules
 sys.path.append(str(Path(__file__).resolve().parent / "src"))
 from processor import DocumentLoader, Chunker, Embedder, VectorStore, QueryEngine
+from processor.project_vector import ProjectVectorManager
 
 # Load API keys
 load_dotenv(dotenv_path=Path(".env"))
@@ -31,7 +34,11 @@ openai_base_url = "https://api.openai.com/v1/chat/completions"
 doc_loader = DocumentLoader.DocumentLoader()
 chunker = Chunker.TextChunker(chunk_size=500, chunk_overlap=50)
 embedder = Embedder.Embedder(openAI)
-store_mgr = VectorStore.VectorStoreManager(embedder.model)
+store_mgr = VectorStore.VectorStoreManager(
+    embedding_model=embedder.model,
+    normalize=True  # Only one supported for now
+)
+
 
 BASE_DIR = ".rpl"
 PROJECTS_DIR = os.path.join(BASE_DIR, "projects")
@@ -41,6 +48,11 @@ CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
 # -----------------------------
 # 📁 Project Context Management
 # -----------------------------
+
+
+def normalize_embeddings(vectors):
+    return [v / np.linalg.norm(v) for v in vectors]
+
 
 class ProjectContext:
     @staticmethod
@@ -93,8 +105,8 @@ def init(project: str, description: str = typer.Option("", help="Project descrip
 def log(
     title: str = typer.Option(..., help="Experiment title"),
     notes: str = typer.Option(..., help="Experiment notes"),
-    tags: str = typer.Option("", help="Comma-separated tags")
-):
+    tags: str = typer.Option("", help="Comma-separated tags")):
+
     project = ProjectContext.current()
     path = os.path.join(PROJECTS_DIR, project)
     log_entry = {
@@ -122,53 +134,16 @@ def log(
 
 @app.command()
 def upload(file_path: str):
-    # Load the existing FAISS index (if any)
-    # Add new chunks
-    # Save the updated vectorstore back
-
-
-    files = [Path(file).name for file in glob.glob(file_path+"/*")]
-    
     project = ProjectContext.current()
     path = os.path.join(PROJECTS_DIR, project)
-    index_path = os.path.join(path, "faiss_index")
 
-    try:
-        vectorstore = store_mgr.load(index_path, allow_dangerous_deserialization=True)
-    except Exception:
-        vectorstore = None
-
-    for file in files:
-        print(file)
-        typer.echo(f"📥 Uploading `{file}` into `{project}`...")
-
-        docs = doc_loader.load(file_path+"/"+file)
-        chunks = chunker.chunk(docs)
-
-        if vectorstore:
-            vectorstore.add_documents(chunks)  # Accumulate
-        else:
-            vectorstore = store_mgr.create_index(chunks)
-        
-        store_mgr.save(vectorstore, os.path.join(path, "faiss_index"))
-
-        meta_path = os.path.join(path, "metadata.json")
-        
-        with open(meta_path, "r") as f:
-            metadata = json.load(f)
-
-        metadata["files"].append({
-            "file_name": os.path.basename(file),
-            "uploaded_at": datetime.utcnow().isoformat()
-    })
-        with open(meta_path, "w") as f:
-            json.dump(metadata, f, indent=2)
-
-        typer.echo("✅ File embedded and linked.")
-
-
-
-
+    manager = ProjectVectorManager(
+        project_path=path,
+        store_mgr=store_mgr,
+        doc_loader=doc_loader,
+        chunker=chunker
+    )
+    manager.upload_folder(file_path)
 
 @app.command()
 def query(question: str):
@@ -181,7 +156,84 @@ def query(question: str):
     answer = qe.ask(question)
     typer.echo("🤖 Answer: " + answer["result"])
 
+@app.command()
+def list():
+    """
+    List all available RPL projects in local folders.
+    """
+    project_paths = []
+    for root, dirs, files in os.walk("."):
+        if ".rpl" in dirs:
+            meta_path = os.path.join(root, ".rpl", "config.json")
+            if os.path.exists(meta_path):
+                with open(meta_path) as f:
+                    config = json.load(f)
+                project_paths.append((root, config.get("current_project")))
 
+    if not project_paths:
+        typer.echo("⚠️  No RPL projects found in current folder tree.")
+    else:
+        typer.echo("📁 Available projects:")
+        for path, proj in project_paths:
+            typer.echo(f" - {proj} (at {path})")
+
+@app.command()
+def switch(project: str):
+    """
+    Switch the current active project.
+    """
+    project_path = os.path.join(PROJECTS_DIR, project)
+    if not os.path.exists(project_path):
+        typer.echo(f"❌ Project '{project}' not found.")
+        raise typer.Exit(1)
+
+    ProjectContext.set_current(project)
+    typer.echo(f"🔄 Switched to project: {project}")
+
+
+@app.command()
+def push():
+    """
+    Prepare files for upload (shows summary — no actual sync yet).
+    """
+    project = ProjectContext.current()
+    path = os.path.join(PROJECTS_DIR, project)
+
+    typer.echo(f"📡 Preparing to sync project: {project}")
+    summary = {
+        "metadata.json": os.path.getsize(os.path.join(path, "metadata.json")),
+        "logs": 0,
+        "uploads": 0,
+        "total_size_bytes": 0
+    }
+
+    # Logs
+    logs_dir = os.path.join(path, "logs")
+    if os.path.exists(logs_dir):
+        for f in os.listdir(logs_dir):
+            full = os.path.join(logs_dir, f)
+            if os.path.isfile(full):
+                summary["logs"] += os.path.getsize(full)
+
+    # Uploads
+    uploads_dir = os.path.join(path, "uploads")
+    if os.path.exists(uploads_dir):
+        for f in os.listdir(uploads_dir):
+            full = os.path.join(uploads_dir, f)
+            if os.path.isfile(full):
+                summary["uploads"] += os.path.getsize(full)
+
+    summary["total_size_bytes"] = (
+        summary["metadata.json"] + summary["logs"] + summary["uploads"]
+    )
+
+    typer.echo("📦 Payload Summary:")
+    typer.echo(f" - metadata.json: {summary['metadata.json']} B")
+    typer.echo(f" - logs: {summary['logs']} B")
+    typer.echo(f" - uploads: {summary['uploads']} B")
+    typer.echo(f" - total: {summary['total_size_bytes'] / 1024:.2f} KB")
+
+    typer.echo("🚧 Upload not yet implemented. API integration pending.")
 
 
 @app.command()
