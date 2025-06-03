@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 import typer
+import glob
+from langchain_community.vectorstores.faiss import FAISS
 
 # Typer CLI app
 app = typer.Typer()
@@ -119,27 +121,53 @@ def log(
 
 
 @app.command()
-def upload(file: str):
+def upload(file_path: str):
+    # Load the existing FAISS index (if any)
+    # Add new chunks
+    # Save the updated vectorstore back
+
+
+    files = [Path(file).name for file in glob.glob(file_path+"/*")]
+    
     project = ProjectContext.current()
     path = os.path.join(PROJECTS_DIR, project)
-    typer.echo(f"📥 Uploading `{file}` into `{project}`...")
+    index_path = os.path.join(path, "faiss_index")
 
-    docs = doc_loader.load(file)
-    chunks = chunker.chunk(docs)
-    vectorstore = store_mgr.create_index(chunks)
-    store_mgr.save(vectorstore, os.path.join(path, "faiss_index"))
+    try:
+        vectorstore = store_mgr.load(index_path, allow_dangerous_deserialization=True)
+    except Exception:
+        vectorstore = None
 
-    meta_path = os.path.join(path, "metadata.json")
-    with open(meta_path, "r") as f:
-        metadata = json.load(f)
-    metadata["files"].append({
-        "file_name": os.path.basename(file),
-        "uploaded_at": datetime.utcnow().isoformat()
+    for file in files:
+        print(file)
+        typer.echo(f"📥 Uploading `{file}` into `{project}`...")
+
+        docs = doc_loader.load(file_path+"/"+file)
+        chunks = chunker.chunk(docs)
+
+        if vectorstore:
+            vectorstore.add_documents(chunks)  # Accumulate
+        else:
+            vectorstore = store_mgr.create_index(chunks)
+        
+        store_mgr.save(vectorstore, os.path.join(path, "faiss_index"))
+
+        meta_path = os.path.join(path, "metadata.json")
+        
+        with open(meta_path, "r") as f:
+            metadata = json.load(f)
+
+        metadata["files"].append({
+            "file_name": os.path.basename(file),
+            "uploaded_at": datetime.utcnow().isoformat()
     })
-    with open(meta_path, "w") as f:
-        json.dump(metadata, f, indent=2)
+        with open(meta_path, "w") as f:
+            json.dump(metadata, f, indent=2)
 
-    typer.echo("✅ File embedded and linked.")
+        typer.echo("✅ File embedded and linked.")
+
+
+
 
 
 @app.command()
@@ -151,7 +179,9 @@ def query(question: str):
     vs = store_mgr.load(path, allow_dangerous_deserialization=True)
     qe = QueryEngine.QueryEngine(vs)
     answer = qe.ask(question)
-    typer.echo("🤖 Answer: " + answer)
+    typer.echo("🤖 Answer: " + answer["result"])
+
+
 
 
 @app.command()
@@ -164,3 +194,4 @@ def current():
 # -----------------------------
 if __name__ == "__main__":
     app()
+
