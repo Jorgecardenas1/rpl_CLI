@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from glob import glob
+import shutil
 
 class ProjectVectorManager:
     def __init__(self, project_path, store_mgr, doc_loader, chunker):
@@ -14,6 +15,34 @@ class ProjectVectorManager:
         self.chunker = chunker
         self.vectorstore = None
 
+        self.uploads_dir = os.path.join(project_path, "uploads")
+        self.meta_path = os.path.join(project_path, "metadata.json")
+
+    def clean_metadata(self, metadata_path, uploads_dir):
+        """Remove metadata entries pointing to missing files."""
+        if not os.path.exists(metadata_path):
+            return
+
+        with open(metadata_path, "r") as f:
+            meta = json.load(f)
+
+        original_count = len(meta.get("files", []))
+        cleaned_files = [f for f in meta["files"] if os.path.exists(os.path.join(uploads_dir, f["file_name"]))]
+        cleaned_count = len(cleaned_files)
+
+        if cleaned_count < original_count:
+            print(f"🧹 Cleaned {original_count - cleaned_count} broken metadata entries")
+
+        meta["files"] = cleaned_files
+        with open(metadata_path, "w") as f:
+            json.dump(meta, f, indent=2)
+    
+    def copy_file_to_uploads(self, src_path, dest_dir):
+        os.makedirs(dest_dir, exist_ok=True)
+        dest_path = os.path.join(dest_dir, os.path.basename(src_path))
+        shutil.copy(src_path, dest_path)
+        return dest_path
+
     def load_or_init_index(self):
         try:
             self.vectorstore = self.store_mgr.load(self.index_path, allow_dangerous_deserialization=True)
@@ -24,6 +53,9 @@ class ProjectVectorManager:
 
     def upload_folder(self, folder_path: str):
         files = [Path(file).name for file in glob(f"{folder_path}/*")]
+
+        self.clean_metadata(self.meta_path, self.uploads_dir)
+
         self.load_or_init_index()
 
         for file in files:
@@ -49,7 +81,16 @@ class ProjectVectorManager:
             raise ValueError(f"❌ No documents could be loaded from: {file_path}")
 
         chunks = self.chunker.chunk(docs)
+        
+
+        for chunk in chunks:
+            chunk.metadata["source"] = file_path  # 🏷️ Add source metadata
+
+
         print(f"✂️ Chunked into {len(chunks)} chunks")
+
+        self.copy_file_to_uploads(file_path, self.uploads_dir)
+
 
         if not chunks:
             raise ValueError(f"❌ No chunks were generated from: {file_path}")

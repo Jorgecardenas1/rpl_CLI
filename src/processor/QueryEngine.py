@@ -6,7 +6,7 @@ groq_base_url = "https://api.groq.com/openai/v1"
 
 
 class QueryEngine:
-    def __init__(self, vectorstore, top_k=6):
+    def __init__(self, vectorstore, top_k=10):
         self.retriever = vectorstore.as_retriever(search_kwargs={"k": top_k})
         self.qa = RetrievalQA.from_chain_type(
             llm=ChatOpenAI(

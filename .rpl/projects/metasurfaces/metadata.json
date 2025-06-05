@@ -1,128 +1,68 @@
 {
   "project": "metasurfaces",
   "description": "",
-  "created_at": "2025-06-03T19:54:32.319814",
+  "created_at": "2025-06-05T02:38:43.428691",
   "logs": [],
   "files": [
     {
       "file_name": "1908.04851v2.pdf",
-      "uploaded_at": "2025-06-03T20:18:55.332708"
+      "uploaded_at": "2025-06-05T02:46:44.672781"
     },
     {
       "file_name": "nn9b02371_si_001.pdf",
-      "uploaded_at": "2025-06-03T20:18:57.870772"
+      "uploaded_at": "2025-06-05T02:46:47.786608"
     },
     {
       "file_name": "nl8b03171_si_001.pdf",
-      "uploaded_at": "2025-06-03T20:19:00.239881"
+      "uploaded_at": "2025-06-05T02:46:50.259090"
     },
     {
       "file_name": "Advanced Optical Materials - 2021 - An - Multifunctional Metasurface Design with a Generative Adversarial Network.pdf",
-      "uploaded_at": "2025-06-03T20:19:02.393823"
+      "uploaded_at": "2025-06-05T02:46:53.052490"
     },
     {
       "file_name": "jiang-et-al-2019-free-form-diffractive-metagrating-design-based-on-generative-adversarial-networks (1).pdf",
-      "uploaded_at": "2025-06-03T20:19:04.382891"
+      "uploaded_at": "2025-06-05T02:46:55.345855"
     },
     {
       "file_name": "jiang-et-al-2019-free-form-diffractive-metagrating-design-based-on-generative-adversarial-networks.pdf",
-      "uploaded_at": "2025-06-03T20:19:06.780557"
+      "uploaded_at": "2025-06-05T02:46:57.381093"
     },
     {
       "file_name": "89b00752-009f-40a8-a531-6442fed95cab.pdf",
-      "uploaded_at": "2025-06-03T20:19:07.513466"
+      "uploaded_at": "2025-06-05T02:46:58.093063"
     },
     {
       "file_name": "Advanced Optical Materials - 2021 - Yeung - Global Inverse Design across Multiple Photonic Structure Classes Using.pdf",
-      "uploaded_at": "2025-06-03T20:19:09.448796"
+      "uploaded_at": "2025-06-05T02:47:00.246764"
     },
     {
       "file_name": "2504.14895v1.pdf",
-      "uploaded_at": "2025-06-03T20:19:11.930006"
+      "uploaded_at": "2025-06-05T02:47:02.623060"
     },
     {
       "file_name": "liu-et-al-2018-generative-model-for-the-inverse-design-of-metasurfaces.pdf",
-      "uploaded_at": "2025-06-03T20:19:13.906078"
+      "uploaded_at": "2025-06-05T02:47:04.621696"
     },
     {
       "file_name": "Equivalent_Circuit-Guided_GAN_Sample_Generation_of_Metasurface_for_Low-RCS_Scanning_Array.pdf",
-      "uploaded_at": "2025-06-03T20:19:21.659921"
+      "uploaded_at": "2025-06-05T02:47:13.443003"
     },
     {
       "file_name": "2012.15790v3.pdf",
-      "uploaded_at": "2025-06-03T20:19:24.588653"
+      "uploaded_at": "2025-06-05T02:47:16.794115"
     },
     {
       "file_name": "Equivalent_Circuit-Guided_GAN_Sample_Generation_of_Metasurface_for_Low-RCS_Scanning_Array (1).pdf",
-      "uploaded_at": "2025-06-03T20:19:32.418705"
+      "uploaded_at": "2025-06-05T02:47:24.982861"
     },
     {
       "file_name": "IA_Metasurface___IEEE_AWPL (2).pdf",
-      "uploaded_at": "2025-06-03T20:19:34.382100"
+      "uploaded_at": "2025-06-05T02:47:26.613028"
     },
     {
       "file_name": "Multidimensional_and_multifunctional_metasurface_d.pdf",
-      "uploaded_at": "2025-06-03T20:19:37.110303"
-    },
-    {
-      "file_name": "1908.04851v2.pdf",
-      "uploaded_at": "2025-06-03T20:32:57.834162"
-    },
-    {
-      "file_name": "nn9b02371_si_001.pdf",
-      "uploaded_at": "2025-06-03T20:33:00.214486"
-    },
-    {
-      "file_name": "nl8b03171_si_001.pdf",
-      "uploaded_at": "2025-06-03T20:33:02.488133"
-    },
-    {
-      "file_name": "Advanced Optical Materials - 2021 - An - Multifunctional Metasurface Design with a Generative Adversarial Network.pdf",
-      "uploaded_at": "2025-06-03T20:33:04.921359"
-    },
-    {
-      "file_name": "jiang-et-al-2019-free-form-diffractive-metagrating-design-based-on-generative-adversarial-networks (1).pdf",
-      "uploaded_at": "2025-06-03T20:33:06.601417"
-    },
-    {
-      "file_name": "jiang-et-al-2019-free-form-diffractive-metagrating-design-based-on-generative-adversarial-networks.pdf",
-      "uploaded_at": "2025-06-03T20:33:08.385000"
-    },
-    {
-      "file_name": "89b00752-009f-40a8-a531-6442fed95cab.pdf",
-      "uploaded_at": "2025-06-03T20:33:09.298611"
-    },
-    {
-      "file_name": "Advanced Optical Materials - 2021 - Yeung - Global Inverse Design across Multiple Photonic Structure Classes Using.pdf",
-      "uploaded_at": "2025-06-03T20:33:11.334357"
-    },
-    {
-      "file_name": "2504.14895v1.pdf",
-      "uploaded_at": "2025-06-03T20:33:12.830742"
-    },
-    {
-      "file_name": "liu-et-al-2018-generative-model-for-the-inverse-design-of-metasurfaces.pdf",
-      "uploaded_at": "2025-06-03T20:33:14.847731"
-    },
-    {
-      "file_name": "Equivalent_Circuit-Guided_GAN_Sample_Generation_of_Metasurface_for_Low-RCS_Scanning_Array.pdf",
-      "uploaded_at": "2025-06-03T20:33:20.613604"
-    },
-    {
-      "file_name": "2012.15790v3.pdf",
-      "uploaded_at": "2025-06-03T20:33:23.888952"
-    },
-    {
-      "file_name": "Equivalent_Circuit-Guided_GAN_Sample_Generation_of_Metasurface_for_Low-RCS_Scanning_Array (1).pdf",
-      "uploaded_at": "2025-06-03T20:33:30.282655"
-    },
-    {
-      "file_name": "IA_Metasurface___IEEE_AWPL (2).pdf",
-      "uploaded_at": "2025-06-03T20:33:32.172222"
-    },
-    {
-      "file_name": "Multidimensional_and_multifunctional_metasurface_d.pdf",
-      "uploaded_at": "2025-06-03T20:33:34.487034"
+      "uploaded_at": "2025-06-05T02:47:29.500235"
     }
   ]
 }

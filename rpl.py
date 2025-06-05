@@ -4,13 +4,19 @@ import os
 import sys
 import json
 import numpy as np
-
+import pickle
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 import typer
 import glob
 from langchain_community.vectorstores.faiss import FAISS
+from langchain.retrievers import EnsembleRetriever
+from langchain_community.retrievers import BM25Retriever
+import shutil
+
+
+
 
 # Typer CLI app
 app = typer.Typer()
@@ -21,33 +27,104 @@ from processor import DocumentLoader, Chunker, Embedder, VectorStore, QueryEngin
 from processor.project_vector import ProjectVectorManager
 
 # Load API keys
-load_dotenv(dotenv_path=Path(".env"))
+load_dotenv()
 
 # Initialize components
 groq_api_key = os.getenv("GROQ_API_KEY")  # Or paste directly (not recommended)
 openAI = os.getenv("OPENAI_API_KEY")  # Or paste directly (not recommended)
-
 openai_base_url = "https://api.openai.com/v1/chat/completions"
 
 
 # Setup
 doc_loader = DocumentLoader.DocumentLoader()
-chunker = Chunker.TextChunker(chunk_size=500, chunk_overlap=50)
+chunker = Chunker.TextChunker(chunk_size=1000, chunk_overlap=200)
 embedder = Embedder.Embedder(openAI)
+
 store_mgr = VectorStore.VectorStoreManager(
     embedding_model=embedder.model,
-    normalize=True  # Only one supported for now
+    normalize=True,         # cosine similarity
+    index_type="FlatIP"     # default for semantic search
 )
 
 
 BASE_DIR = ".rpl"
 PROJECTS_DIR = os.path.join(BASE_DIR, "projects")
 CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
-
+print(CONFIG_PATH)
 
 # -----------------------------
 # 📁 Project Context Management
 # -----------------------------
+def copy_file_to_uploads(src_path, dest_dir):
+    os.makedirs(dest_dir, exist_ok=True)
+    dest_path = os.path.join(dest_dir, os.path.basename(src_path))
+    shutil.copy(src_path, dest_path)
+    return dest_path
+
+def clean_metadata(metadata_path, uploads_dir):
+    """Remove metadata entries pointing to missing files."""
+    if not os.path.exists(metadata_path):
+        return
+
+    with open(metadata_path, "r") as f:
+        meta = json.load(f)
+
+    original_count = len(meta.get("files", []))
+    cleaned_files = [f for f in meta["files"] if os.path.exists(os.path.join(uploads_dir, f["file_name"]))]
+    cleaned_count = len(cleaned_files)
+
+    if cleaned_count < original_count:
+        print(f"🧹 Cleaned {original_count - cleaned_count} broken metadata entries")
+
+    meta["files"] = cleaned_files
+    with open(metadata_path, "w") as f:
+        json.dump(meta, f, indent=2)
+        
+def load_or_cache_chunks(project_path: str, uploads_dir: str, meta_path: str):
+    cache_path = os.path.join(project_path, "doc_chunks.pkl")
+
+    # 🔁 Load from cache if it exists
+    if os.path.exists(cache_path):
+        with open(cache_path, "rb") as f:
+            print("🔁 Loading cached document chunks...")
+            return pickle.load(f)
+
+    # 📥 Otherwise, load and chunk
+    doc_loader = DocumentLoader.DocumentLoader()
+    chunker = Chunker.TextChunker(chunk_size=500, chunk_overlap=50)
+
+    with open(meta_path, "r") as f:
+        metadata = json.load(f)
+
+    all_docs = []
+
+    for entry in metadata.get("files", []):
+        file_path = os.path.join(uploads_dir, entry["file_name"])
+
+        if not os.path.exists(file_path):
+            print(f"⚠️ Skipping missing file: {file_path}")
+            continue
+
+        docs = doc_loader.load(file_path)
+        if not docs:
+            print(f"⚠️ No documents loaded from: {file_path}")
+            continue
+
+        chunks = chunker.chunk(docs)
+        for chunk in chunks:
+            chunk.metadata["source"] = os.path.basename(file_path)
+
+        all_docs.extend(chunks)
+
+    if not all_docs:
+        raise ValueError("❌ No valid documents found.")
+
+    # 💾 Cache it
+    with open(cache_path, "wb") as f:
+        pickle.dump(all_docs, f)
+
+    print(f"✅ Chunked and cached {len(all_docs)} chunks.")
+    return all_docs
 
 
 def normalize_embeddings(vectors):
@@ -235,12 +312,73 @@ def push():
 
     typer.echo("🚧 Upload not yet implemented. API integration pending.")
 
+@app.command()
+def hybrid(query: str, k: int = 5):
+    """
+    Hybrid semantic + keyword search (FAISS + BM25).
+    """
+    project = ProjectContext.current()
+    path = os.path.join(PROJECTS_DIR, project)
+    vectorstore = store_mgr.load(os.path.join(path, "faiss_index"), allow_dangerous_deserialization=True)
+
+    uploads_dir = os.path.join(path, "uploads")
+    meta_path = os.path.join(path, "metadata.json")
+
+    # 🔁 Load or regenerate cached chunks
+    all_docs = load_or_cache_chunks(path, uploads_dir, meta_path)
+
+    # ✅ Build hybrid retriever
+    faiss_retriever = vectorstore.as_retriever(search_kwargs={"k": k})
+    bm25_retriever = BM25Retriever.from_documents(all_docs)
+    bm25_retriever.k = k
+
+    hybrid = EnsembleRetriever(
+        retrievers=[faiss_retriever, bm25_retriever],
+        weights=[0.7, 0.3]
+    )
+
+    results = hybrid.get_relevant_documents(query)
+
+    print(f"\n🔍 Hybrid results for query: '{query}'\n")
+    for i, doc in enumerate(results, 1):
+        source = doc.metadata.get("source", "unknown")
+        content = doc.page_content.strip().replace("\n", " ")[:300]
+        print(f"[{i}] 📄 {source}")
+        print(f"    {content}\n")
+
+
 
 @app.command()
 def current():
     ProjectContext.show_current()
 
+@app.command()
+def debug(query: str, k: int = 5):
+    """
+    Inspect top-k retrieved chunks before answering with LLM.
+    """
+    project = ProjectContext.current()
+    path = os.path.join(PROJECTS_DIR, project)
 
+    print(f"\n🔍 [bold cyan]Project:[/bold cyan] {project}")
+    print(f"[bold cyan]Query:[/bold cyan] {query}")
+
+    # Load vectorstore
+    vectorstore = store_mgr.load(
+        os.path.join(path, "faiss_index"),
+        allow_dangerous_deserialization=True
+    )
+    retriever = vectorstore.as_retriever(search_kwargs={"k": k})
+    docs = retriever.get_relevant_documents(query)
+
+    print(f"\n[bold green]Top {k} Retrieved Chunks:[/bold green]\n")
+    for i, doc in enumerate(docs, 1):
+        source = doc.metadata.get("source", "unknown")
+        content = doc.page_content[:300].strip().replace("\n", " ")
+        print(f"[{i}] [yellow]{source}[/yellow]")
+        print(f"    [dim]{content}[/dim]\n")
+
+    print("✅ Use [bold]rpl query[/bold] to synthesize an answer from these.")
 # -----------------------------
 # 🚀 Entrypoint
 # -----------------------------
