@@ -10,15 +10,8 @@ from dotenv import load_dotenv
 
 dotenv_path = Path('./.env')
 load_dotenv(dotenv_path=dotenv_path)
-
-
-
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")  # Or paste directly (not recommended)
-
 MODEL = "llama3-8b-8192"
-
-
-
 
 class IntentDetector:
     def detect(self, user_input):

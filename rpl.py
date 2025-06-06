@@ -1,336 +1,184 @@
-#!/usr/bin/env python3
-
 import os
 import sys
 import json
-import numpy as np
+import glob
+import shutil
 import pickle
+import requests
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 import typer
-import glob
 from langchain_community.vectorstores.faiss import FAISS
 from langchain.retrievers import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
-import shutil
 
-
-
-
-# Typer CLI app
+# Typer CLI instance
 app = typer.Typer()
 
-# Local modules
+# Add src/ to import path
 sys.path.append(str(Path(__file__).resolve().parent / "src"))
+
+# Local modules
 from processor import DocumentLoader, Chunker, Embedder, VectorStore, QueryEngine
 from processor.project_vector import ProjectVectorManager
 
-# Load API keys
-load_dotenv()
-
-# Initialize components
-groq_api_key = os.getenv("GROQ_API_KEY")  # Or paste directly (not recommended)
-openAI = os.getenv("OPENAI_API_KEY")  # Or paste directly (not recommended)
-openai_base_url = "https://api.openai.com/v1/chat/completions"
+# === Constants ===
+PROJECTS_DIR = ".rpl/projects"
+CONFIG_PATH = ".rpl/config.json"
 
 
-# Setup
-doc_loader = DocumentLoader.DocumentLoader()
-chunker = Chunker.TextChunker(chunk_size=1000, chunk_overlap=200)
-embedder = Embedder.Embedder(openAI)
-
-store_mgr = VectorStore.VectorStoreManager(
-    embedding_model=embedder.model,
-    normalize=True,         # cosine similarity
-    index_type="FlatIP"     # default for semantic search
-)
-
-
-BASE_DIR = ".rpl"
-PROJECTS_DIR = os.path.join(BASE_DIR, "projects")
-CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
-print(CONFIG_PATH)
-
-# -----------------------------
-# 📁 Project Context Management
-# -----------------------------
-def copy_file_to_uploads(src_path, dest_dir):
-    os.makedirs(dest_dir, exist_ok=True)
-    dest_path = os.path.join(dest_dir, os.path.basename(src_path))
-    shutil.copy(src_path, dest_path)
-    return dest_path
-
-def clean_metadata(metadata_path, uploads_dir):
-    """Remove metadata entries pointing to missing files."""
-    if not os.path.exists(metadata_path):
-        return
-
-    with open(metadata_path, "r") as f:
-        meta = json.load(f)
-
-    original_count = len(meta.get("files", []))
-    cleaned_files = [f for f in meta["files"] if os.path.exists(os.path.join(uploads_dir, f["file_name"]))]
-    cleaned_count = len(cleaned_files)
-
-    if cleaned_count < original_count:
-        print(f"🧹 Cleaned {original_count - cleaned_count} broken metadata entries")
-
-    meta["files"] = cleaned_files
-    with open(metadata_path, "w") as f:
-        json.dump(meta, f, indent=2)
-        
-def load_or_cache_chunks(project_path: str, uploads_dir: str, meta_path: str):
-    cache_path = os.path.join(project_path, "doc_chunks.pkl")
-
-    # 🔁 Load from cache if it exists
-    if os.path.exists(cache_path):
-        with open(cache_path, "rb") as f:
-            print("🔁 Loading cached document chunks...")
-            return pickle.load(f)
-
-    # 📥 Otherwise, load and chunk
-    doc_loader = DocumentLoader.DocumentLoader()
-    chunker = Chunker.TextChunker(chunk_size=500, chunk_overlap=50)
-
-    with open(meta_path, "r") as f:
-        metadata = json.load(f)
-
-    all_docs = []
-
-    for entry in metadata.get("files", []):
-        file_path = os.path.join(uploads_dir, entry["file_name"])
-
-        if not os.path.exists(file_path):
-            print(f"⚠️ Skipping missing file: {file_path}")
-            continue
-
-        docs = doc_loader.load(file_path)
-        if not docs:
-            print(f"⚠️ No documents loaded from: {file_path}")
-            continue
-
-        chunks = chunker.chunk(docs)
-        for chunk in chunks:
-            chunk.metadata["source"] = os.path.basename(file_path)
-
-        all_docs.extend(chunks)
-
-    if not all_docs:
-        raise ValueError("❌ No valid documents found.")
-
-    # 💾 Cache it
-    with open(cache_path, "wb") as f:
-        pickle.dump(all_docs, f)
-
-    print(f"✅ Chunked and cached {len(all_docs)} chunks.")
-    return all_docs
+# === Helper: Load API Keys from Hosted Server ===
+def get_keys_from_backend(project_id="demo-lab-1"):
+    url = f"https://rpl-render.onrender.com/keys/{project_id}"
+    res = requests.get(url)
+    if res.status_code != 200:
+        raise RuntimeError("❌ Failed to fetch API keys from backend.")
+    keys = res.json()
+    os.environ["OPENAI_API_KEY"] = keys["openai_key"]
+    os.environ["GROQ_API_KEY"] = keys["groq_key"]
+    print("🔐 API keys set from backend")
 
 
-def normalize_embeddings(vectors):
-    return [v / np.linalg.norm(v) for v in vectors]
-
-
+# === Helper: Get Current Project Context ===
 class ProjectContext:
     @staticmethod
-    def ensure_initialized():
-        if not os.path.exists(CONFIG_PATH):
-            typer.echo("❌ No RPL project initialized. Run `rpl init <project>`.")
-            raise typer.Exit(1)
-
-    @staticmethod
     def current():
-        ProjectContext.ensure_initialized()
+        if not os.path.exists(CONFIG_PATH):
+            raise typer.Exit("❌ No project initialized. Run `rpl init <name>`.")
         with open(CONFIG_PATH) as f:
             return json.load(f)["current_project"]
 
     @staticmethod
-    def set_current(project):
-        os.makedirs(BASE_DIR, exist_ok=True)
+    def set(project_name):
+        os.makedirs(".rpl", exist_ok=True)
         with open(CONFIG_PATH, "w") as f:
-            json.dump({"current_project": project}, f)
-
-    @staticmethod
-    def show_current():
-        ProjectContext.ensure_initialized()
-        project = ProjectContext.current()
-        typer.echo(f"🔍 Current project: {project}")
+            json.dump({"current_project": project_name}, f, indent=2)
 
 
-# -----------------------------
-# 🧪 Commands
-# -----------------------------
-
+# === Command: Init a New Project ===
 @app.command()
-def init(project: str, description: str = typer.Option("", help="Project description")):
-    path = os.path.join(PROJECTS_DIR, project)
-    os.makedirs(path, exist_ok=True)
-    metadata = {
-        "project": project,
-        "description": description,
-        "created_at": datetime.utcnow().isoformat(),
-        "logs": [],
-        "files": []
-    }
+def init(project_name: str):
+    path = os.path.join(PROJECTS_DIR, project_name)
+    os.makedirs(os.path.join(path, "uploads"), exist_ok=True)
     with open(os.path.join(path, "metadata.json"), "w") as f:
-        json.dump(metadata, f, indent=2)
-    ProjectContext.set_current(project)
-    typer.echo(f"✅ Initialized RPL project \"{project}\" in .rpl/")
+        json.dump({"project": project_name, "files": []}, f, indent=2)
+    ProjectContext.set(project_name)
+    print(f"✅ Initialized project '{project_name}'.")
 
 
+# === Command: Log a New Experiment (placeholder logic) ===
 @app.command()
-def log(
-    title: str = typer.Option(..., help="Experiment title"),
-    notes: str = typer.Option(..., help="Experiment notes"),
-    tags: str = typer.Option("", help="Comma-separated tags")):
-
+def log(message: str):
     project = ProjectContext.current()
     path = os.path.join(PROJECTS_DIR, project)
-    log_entry = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "title": title,
-        "notes": notes,
-        "tags": tags.split(",") if tags else []
-    }
+    log_path = os.path.join(path, "log.txt")
+    with open(log_path, "a") as f:
+        f.write(f"{datetime.utcnow().isoformat()}: {message}\n")
+    print("📝 Logged:", message)
 
-    logs_path = os.path.join(path, "logs")
-    os.makedirs(logs_path, exist_ok=True)
-    log_file = os.path.join(logs_path, f"{datetime.utcnow().isoformat()}.json")
-    with open(log_file, "w") as f:
-        json.dump(log_entry, f, indent=2)
 
+# === Command: Upload & Embed Documents ===
+@app.command()
+def upload(folder_path: str):
+    project = ProjectContext.current()
+    path = os.path.join(PROJECTS_DIR, project)
+    uploads_dir = os.path.join(path, "uploads")
     meta_path = os.path.join(path, "metadata.json")
-    with open(meta_path, "r") as f:
-        metadata = json.load(f)
-    metadata["logs"].append(log_entry)
-    with open(meta_path, "w") as f:
-        json.dump(metadata, f, indent=2)
 
-    typer.echo(f"📝 Logged experiment under project \"{project}\".")
+    files = [Path(f).name for f in glob.glob(folder_path + "/*")]
+    vectorstore = None
+
+    # Try to load existing index
+    try:
+        vectorstore = store_mgr.load(os.path.join(path, "faiss_index"), allow_dangerous_deserialization=True)
+        print("🔁 Loaded existing vectorstore.")
+    except:
+        print("🧠 Creating new vectorstore.")
+
+    for file in files:
+        full_path = os.path.join(folder_path, file)
+        if not os.path.exists(full_path):
+            print(f"⚠️ Skipping missing file: {full_path}")
+            continue
+
+        print(f"📥 Uploading `{file}` to `{project}`...")
+
+        # Load and chunk
+        docs = doc_loader.load(full_path)
+        chunks = chunker.chunk(docs)
+        for chunk in chunks:
+            chunk.metadata["source"] = file
+
+        # Add to vectorstore
+        if vectorstore:
+            vectorstore.add_documents(chunks)
+        else:
+            vectorstore = store_mgr.create_index(chunks)
+
+        # Copy to uploads/
+        os.makedirs(uploads_dir, exist_ok=True)
+        shutil.copy(full_path, os.path.join(uploads_dir, file))
+
+        # Update metadata
+        with open(meta_path, "r") as f:
+            metadata = json.load(f)
+        metadata["files"].append({
+            "file_name": file,
+            "uploaded_at": datetime.utcnow().isoformat()
+        })
+        with open(meta_path, "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        print("✅ File processed and saved.")
+
+    store_mgr.save(vectorstore, os.path.join(path, "faiss_index"))
+    print("💾 Index saved.")
 
 
-@app.command()
-def upload(file_path: str):
-    project = ProjectContext.current()
-    path = os.path.join(PROJECTS_DIR, project)
-
-    manager = ProjectVectorManager(
-        project_path=path,
-        store_mgr=store_mgr,
-        doc_loader=doc_loader,
-        chunker=chunker
-    )
-    manager.upload_folder(file_path)
-
+# === Command: Query FAISS Only ===
 @app.command()
 def query(question: str):
     project = ProjectContext.current()
-    path = os.path.join(PROJECTS_DIR, project, "faiss_index")
-    typer.echo(f"🔍 Querying `{project}`...")
-
-    vs = store_mgr.load(path, allow_dangerous_deserialization=True)
-    qe = QueryEngine.QueryEngine(vs)
-    answer = qe.ask(question)
-    typer.echo("🤖 Answer: " + answer["result"])
-
-@app.command()
-def list():
-    """
-    List all available RPL projects in local folders.
-    """
-    project_paths = []
-    for root, dirs, files in os.walk("."):
-        if ".rpl" in dirs:
-            meta_path = os.path.join(root, ".rpl", "config.json")
-            if os.path.exists(meta_path):
-                with open(meta_path) as f:
-                    config = json.load(f)
-                project_paths.append((root, config.get("current_project")))
-
-    if not project_paths:
-        typer.echo("⚠️  No RPL projects found in current folder tree.")
-    else:
-        typer.echo("📁 Available projects:")
-        for path, proj in project_paths:
-            typer.echo(f" - {proj} (at {path})")
-
-@app.command()
-def switch(project: str):
-    """
-    Switch the current active project.
-    """
-    project_path = os.path.join(PROJECTS_DIR, project)
-    if not os.path.exists(project_path):
-        typer.echo(f"❌ Project '{project}' not found.")
-        raise typer.Exit(1)
-
-    ProjectContext.set_current(project)
-    typer.echo(f"🔄 Switched to project: {project}")
-
-
-@app.command()
-def push():
-    """
-    Prepare files for upload (shows summary — no actual sync yet).
-    """
-    project = ProjectContext.current()
-    path = os.path.join(PROJECTS_DIR, project)
-
-    typer.echo(f"📡 Preparing to sync project: {project}")
-    summary = {
-        "metadata.json": os.path.getsize(os.path.join(path, "metadata.json")),
-        "logs": 0,
-        "uploads": 0,
-        "total_size_bytes": 0
-    }
-
-    # Logs
-    logs_dir = os.path.join(path, "logs")
-    if os.path.exists(logs_dir):
-        for f in os.listdir(logs_dir):
-            full = os.path.join(logs_dir, f)
-            if os.path.isfile(full):
-                summary["logs"] += os.path.getsize(full)
-
-    # Uploads
-    uploads_dir = os.path.join(path, "uploads")
-    if os.path.exists(uploads_dir):
-        for f in os.listdir(uploads_dir):
-            full = os.path.join(uploads_dir, f)
-            if os.path.isfile(full):
-                summary["uploads"] += os.path.getsize(full)
-
-    summary["total_size_bytes"] = (
-        summary["metadata.json"] + summary["logs"] + summary["uploads"]
-    )
-
-    typer.echo("📦 Payload Summary:")
-    typer.echo(f" - metadata.json: {summary['metadata.json']} B")
-    typer.echo(f" - logs: {summary['logs']} B")
-    typer.echo(f" - uploads: {summary['uploads']} B")
-    typer.echo(f" - total: {summary['total_size_bytes'] / 1024:.2f} KB")
-
-    typer.echo("🚧 Upload not yet implemented. API integration pending.")
-
-@app.command()
-def hybrid(query: str, k: int = 5):
-    """
-    Hybrid semantic + keyword search (FAISS + BM25).
-    """
-    project = ProjectContext.current()
     path = os.path.join(PROJECTS_DIR, project)
     vectorstore = store_mgr.load(os.path.join(path, "faiss_index"), allow_dangerous_deserialization=True)
+    engine = QueryEngine.QueryEngine(vectorstore)
+    answer = engine.ask(question)
+    print("🤖 Answer:", answer)
 
+
+# === Command: Hybrid FAISS + BM25 Retrieval ===
+@app.command()
+def hybrid(query: str, k: int = 5):
+    project = ProjectContext.current()
+    path = os.path.join(PROJECTS_DIR, project)
     uploads_dir = os.path.join(path, "uploads")
     meta_path = os.path.join(path, "metadata.json")
 
-    # 🔁 Load or regenerate cached chunks
-    all_docs = load_or_cache_chunks(path, uploads_dir, meta_path)
+    # Reload and chunk all uploaded docs
+    all_docs = []
+    with open(meta_path, "r") as f:
+        meta = json.load(f)
 
-    # ✅ Build hybrid retriever
-    faiss_retriever = vectorstore.as_retriever(search_kwargs={"k": k})
+    for entry in meta["files"]:
+        file_path = os.path.join(uploads_dir, entry["file_name"])
+        if not os.path.exists(file_path):
+            print(f"⚠️ Skipping missing file: {file_path}")
+            continue
+        docs = doc_loader.load(file_path)
+        chunks = chunker.chunk(docs)
+        for chunk in chunks:
+            chunk.metadata["source"] = entry["file_name"]
+        all_docs.extend(chunks)
+
+    if not all_docs:
+        raise typer.Exit("❌ No documents loaded for hybrid search.")
+
     bm25_retriever = BM25Retriever.from_documents(all_docs)
     bm25_retriever.k = k
+
+    vectorstore = store_mgr.load(os.path.join(path, "faiss_index"), allow_dangerous_deserialization=True)
+    faiss_retriever = vectorstore.as_retriever(search_kwargs={"k": k})
 
     hybrid = EnsembleRetriever(
         retrievers=[faiss_retriever, bm25_retriever],
@@ -338,8 +186,7 @@ def hybrid(query: str, k: int = 5):
     )
 
     results = hybrid.get_relevant_documents(query)
-
-    print(f"\n🔍 Hybrid results for query: '{query}'\n")
+    print(f"\n🔍 Results for: '{query}'\n")
     for i, doc in enumerate(results, 1):
         source = doc.metadata.get("source", "unknown")
         content = doc.page_content.strip().replace("\n", " ")[:300]
@@ -347,41 +194,28 @@ def hybrid(query: str, k: int = 5):
         print(f"    {content}\n")
 
 
-
+# === Command: Push (Preview sync — future API upload) ===
 @app.command()
-def current():
-    ProjectContext.show_current()
-
-@app.command()
-def debug(query: str, k: int = 5):
-    """
-    Inspect top-k retrieved chunks before answering with LLM.
-    """
+def push():
     project = ProjectContext.current()
     path = os.path.join(PROJECTS_DIR, project)
+    meta_path = os.path.join(path, "metadata.json")
 
-    print(f"\n🔍 [bold cyan]Project:[/bold cyan] {project}")
-    print(f"[bold cyan]Query:[/bold cyan] {query}")
+    with open(meta_path, "r") as f:
+        meta = json.load(f)
 
-    # Load vectorstore
-    vectorstore = store_mgr.load(
-        os.path.join(path, "faiss_index"),
-        allow_dangerous_deserialization=True
-    )
-    retriever = vectorstore.as_retriever(search_kwargs={"k": k})
-    docs = retriever.get_relevant_documents(query)
+    print(f"📤 Preparing to push project: {project}")
+    for file in meta["files"]:
+        file_path = os.path.join(path, "uploads", file["file_name"])
+        size = os.path.getsize(file_path) / 1024
+        print(f" - {file['file_name']}: {size:.1f} KB")
+    print("✅ Push preview complete.")
 
-    print(f"\n[bold green]Top {k} Retrieved Chunks:[/bold green]\n")
-    for i, doc in enumerate(docs, 1):
-        source = doc.metadata.get("source", "unknown")
-        content = doc.page_content[:300].strip().replace("\n", " ")
-        print(f"[{i}] [yellow]{source}[/yellow]")
-        print(f"    [dim]{content}[/dim]\n")
 
-    print("✅ Use [bold]rpl query[/bold] to synthesize an answer from these.")
-# -----------------------------
-# 🚀 Entrypoint
-# -----------------------------
-if __name__ == "__main__":
-    app()
-
+# === Startup Setup ===
+# Inject keys and initialize components
+get_keys_from_backend()
+doc_loader = DocumentLoader.DocumentLoader()
+chunker = Chunker.TextChunker(chunk_size=500, chunk_overlap=50)
+embedder = Embedder.Embedder(os.environ["OPENAI_API_KEY"])
+store_mgr = VectorStore.VectorStoreManager(embedder.model)

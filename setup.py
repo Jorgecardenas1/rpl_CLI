@@ -1,13 +1,22 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
-    name="rpl",
+    name="rplcopilot",
     version="0.1.0",
-    py_modules=["rpl"],
-    install_requires=["typer[all]"],
+    packages=find_packages(),
+    include_package_data=True,
+    install_requires=[
+        "typer",
+        "langchain",
+        "langchain-openai",
+        "python-dotenv",
+        "faiss-cpu",
+        "openai",
+        "rich",
+    ],
     entry_points={
         "console_scripts": [
-            "rpl = rpl:app",
-        ],
+            "rpl=rpl.rpl:app",  # path to CLI app
+        ]
     },
 )
