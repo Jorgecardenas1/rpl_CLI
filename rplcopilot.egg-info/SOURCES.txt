@@ -1,0 +1,12 @@
+README.md
+pyproject.toml
+setup.cfg
+rplcopilot/__init__.py
+rplcopilot/rpl.py
+rplcopilot.egg-info/PKG-INFO
+rplcopilot.egg-info/SOURCES.txt
+rplcopilot.egg-info/dependency_links.txt
+rplcopilot.egg-info/entry_points.txt
+rplcopilot.egg-info/requires.txt
+rplcopilot.egg-info/top_level.txt
+rplcopilot/src/__init__.py
