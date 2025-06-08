@@ -12,6 +12,8 @@ import typer
 from langchain_community.vectorstores.faiss import FAISS
 from langchain.retrievers import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
+from langchain_openai import ChatOpenAI
+from langchain_core.documents import Document
 
 # Typer CLI instance
 app = typer.Typer()
@@ -21,6 +23,9 @@ sys.path.append(str(Path(__file__).resolve().parent / "src"))
 
 # Local modules
 from processor import DocumentLoader, Chunker, Embedder, VectorStore, QueryEngine
+from processor import Semantic,Export
+
+
 from processor.project_vector import ProjectVectorManager
 
 # === Constants ===
@@ -68,102 +73,263 @@ def init(project_name: str):
 
 
 # === Command: Log a New Experiment (placeholder logic) ===
+
+
 @app.command()
-def log(message: str):
+def log(
+    title: str = typer.Option(..., help="Title of the experiment"),
+    notes: str = typer.Option("", help="Detailed notes or description"),
+    tags: str = typer.Option("", help="Comma-separated tags")
+):
+    """Log an experiment entry under the current project with semantic enrichment."""
     project = ProjectContext.current()
     path = os.path.join(PROJECTS_DIR, project)
-    log_path = os.path.join(path, "log.txt")
-    with open(log_path, "a") as f:
-        f.write(f"{datetime.utcnow().isoformat()}: {message}\n")
-    print("📝 Logged:", message)
+    logs_dir = os.path.join(path, "logs")
+    os.makedirs(logs_dir, exist_ok=True)
+
+    typer.secho(f"\n📝 Logging new experiment in project: {project}", fg="cyan", bold=True)
+
+    # Load FAISS if available
+    vectorstore = None
+    try:
+        vectorstore = store_mgr.load(os.path.join(path, "faiss_index"), allow_dangerous_deserialization=True)
+        typer.secho("🔁 Vector index loaded successfully.", fg="green")
+    except:
+        typer.secho("⚠️ No vector index found. Proceeding without similarity linking.", fg="yellow")
+
+    # Init LLM
+    llm = ChatOpenAI(
+        openai_api_key=os.getenv("GROQ_API_KEY"),
+        openai_api_base="https://api.groq.com/openai/v1",
+        model_name="llama3-70b-8192"
+    )
+    semantic_engine = Semantic.SemanticEngine(vectorstore)
+    semantic_engine.llm = llm
+
+    summary, enriched_tags, related = "", [], []
+
+    try:
+        if notes.strip():
+            typer.secho("🧠 Enriching log with semantic info...", fg="blue")
+            summary, enriched_tags = semantic_engine.enrich_metadata(notes)
+            related = semantic_engine.find_related_experiments([
+                Document(page_content=notes, metadata={"source": "log entry"})
+            ])
+            typer.secho("✅ Semantic enrichment complete!", fg="green")
+    except Exception as e:
+        typer.secho(f"⚠️ Semantic enrichment failed: {e}", fg="red")
+
+    # Combine tags
+    combined_tags = list(set([t.strip() for t in tags.split(",")] + enriched_tags)) if tags else enriched_tags
+
+    # Save log
+    entry = {
+        "title": title,
+        "notes": notes,
+        "summary": summary,
+        "tags": combined_tags,
+        "related": [r.metadata.get("source", "") for r in related],
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+    log_file = os.path.join(logs_dir, f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json")
+    with open(log_file, "w") as f:
+        json.dump(entry, f, indent=2)
+
+    # Append to logbook
+    logbook_path = os.path.join(logs_dir, "logbook.json")
+    if os.path.exists(logbook_path):
+        with open(logbook_path, "r") as f:
+            all_logs = json.load(f)
+    else:
+        all_logs = []
+    all_logs.append(entry)
+    with open(logbook_path, "w") as f:
+        json.dump(all_logs, f, indent=2)
+
+    # Report
+    typer.secho(f"\n✅ Experiment '{title}' logged.", fg="green", bold=True)
+    if summary:
+        typer.secho(f"\n🧠 Summary:\n{summary}", fg="cyan")
+    if combined_tags:
+        typer.secho(f"\n🏷️ Tags: {', '.join(combined_tags)}", fg="magenta")
+    if related:
+        typer.secho(f"\n🔗 Related Files:", fg="yellow")
+        for r in related:
+            typer.secho(f"   - {r.metadata.get('source', 'unknown')}", fg="white")
+
+# === Command: List Projects ===
+@app.command()
+def list():
+    """List all initialized projects."""
+    projects = os.listdir(PROJECTS_DIR)
+    if not projects:
+        print("❌ No projects found.")
+    for project in projects:
+        print(f"📁 {project}")
+
+@app.command()
+def switch(project: str):
+    """Switch the active project context."""
+    ProjectContext.set(project)
+    print(f"🔄 Switched context to project: {project}")
 
 
+@app.command()
+def current():
+    """Switch the active project context."""
+   
+    print(f"🔄 Current context to project: { ProjectContext.current()}")
 # === Command: Upload & Embed Documents ===
+
 @app.command()
 def upload(folder_path: str):
+    """Upload and embed all documents from a folder into the current project's knowledge base."""
     project = ProjectContext.current()
     path = os.path.join(PROJECTS_DIR, project)
     uploads_dir = os.path.join(path, "uploads")
     meta_path = os.path.join(path, "metadata.json")
 
-    files = [Path(f).name for f in glob.glob(folder_path + "/*")]
-    vectorstore = None
+    os.makedirs(uploads_dir, exist_ok=True)
 
-    # Try to load existing index
+    files = [Path(f).name for f in glob.glob(os.path.join(folder_path, "*"))]
+    if not files:
+        typer.secho("❌ No files found in the provided folder.", fg="red")
+        raise typer.Exit()
+
+    # Load or create FAISS index
     try:
         vectorstore = store_mgr.load(os.path.join(path, "faiss_index"), allow_dangerous_deserialization=True)
-        print("🔁 Loaded existing vectorstore.")
+        typer.secho("🔁 Loaded existing vectorstore.", fg="green")
     except:
-        print("🧠 Creating new vectorstore.")
+        vectorstore = None
+        typer.secho("🧠 No vectorstore found. A new one will be created.", fg="yellow")
+
+    # Init semantic engine
+    llm = ChatOpenAI(
+        openai_api_key=os.getenv("GROQ_API_KEY"),
+        openai_api_base="https://api.groq.com/openai/v1",
+        model_name="llama3-70b-8192"
+    )
+    semantic_engine = Semantic.SemanticEngine(vectorstore)
+    semantic_engine.llm = llm
 
     for file in files:
         full_path = os.path.join(folder_path, file)
         if not os.path.exists(full_path):
-            print(f"⚠️ Skipping missing file: {full_path}")
+            typer.secho(f"⚠️ Skipping missing file: {file}", fg="yellow")
             continue
 
-        print(f"📥 Uploading `{file}` to `{project}`...")
+        typer.secho(f"\n📥 Uploading `{file}` to `{project}`...", fg="cyan", bold=True)
 
-        # Load and chunk
-        docs = doc_loader.load(full_path)
-        chunks = chunker.chunk(docs)
-        for chunk in chunks:
-            chunk.metadata["source"] = file
+        try:
+            docs = doc_loader.load(full_path)
+            chunks = chunker.chunk(docs)
+            for chunk in chunks:
+                chunk.metadata["source"] = file
 
-        # Add to vectorstore
-        if vectorstore:
-            vectorstore.add_documents(chunks)
-        else:
-            vectorstore = store_mgr.create_index(chunks)
+            if vectorstore:
+                vectorstore.add_documents(chunks)
+            else:
+                vectorstore = store_mgr.create_index(chunks)
 
-        # Copy to uploads/
-        os.makedirs(uploads_dir, exist_ok=True)
-        shutil.copy(full_path, os.path.join(uploads_dir, file))
+            shutil.copy(full_path, os.path.join(uploads_dir, file))
 
-        # Update metadata
-        with open(meta_path, "r") as f:
-            metadata = json.load(f)
-        metadata["files"].append({
-            "file_name": file,
-            "uploaded_at": datetime.utcnow().isoformat()
-        })
-        with open(meta_path, "w") as f:
-            json.dump(metadata, f, indent=2)
+            # 🧠 Semantic Enrichment
+            summary, keywords, doc_type, related = "", [], "unknown", []
+            try:
+                text = " ".join([doc.page_content for doc in chunks[:3]])
+                doc_type = semantic_engine.detect_type(text)
+                summary, keywords = semantic_engine.enrich_metadata(text)
+                related = semantic_engine.find_related_experiments(chunks)
+            except Exception as e:
+                typer.secho(f"⚠️ Enrichment failed: {e}", fg="red")
 
-        print("✅ File processed and saved.")
+            # 📝 Update metadata
+            with open(meta_path, "r") as f:
+                metadata = json.load(f)
 
-    store_mgr.save(vectorstore, os.path.join(path, "faiss_index"))
-    print("💾 Index saved.")
+            metadata["files"].append({
+                "file_name": file,
+                "uploaded_at": datetime.utcnow().isoformat(),
+                "summary": summary,
+                "keywords": keywords,
+                "type": doc_type,
+                "related": [r.metadata.get("source", "unknown") for r in related]
+            })
+
+            with open(meta_path, "w") as f:
+                json.dump(metadata, f, indent=2)
+
+            typer.secho("✅ File indexed and metadata enriched.", fg="green")
+
+        except Exception as e:
+            typer.secho(f"❌ Failed to process `{file}`: {e}", fg="red")
+
+    # Save vectorstore
+    if vectorstore:
+        store_mgr.save(vectorstore, os.path.join(path, "faiss_index"))
+        typer.secho("\n💾 Vectorstore saved.\n", fg="green", bold=True)
+    else:
+        typer.secho("⚠️ No vectorstore created.", fg="red")
 
 
 # === Command: Query FAISS Only ===
 @app.command()
-def query(question: str):
+def query(
+    question: str = typer.Argument(..., help="Your question about the project"),
+    top_k: int = typer.Option(5, help="How many chunks to retrieve from the index")
+):
+    """Ask a natural language question against the current project's knowledge base."""
     project = ProjectContext.current()
     path = os.path.join(PROJECTS_DIR, project)
-    vectorstore = store_mgr.load(os.path.join(path, "faiss_index"), allow_dangerous_deserialization=True)
-    engine = QueryEngine.QueryEngine(vectorstore)
-    answer = engine.ask(question)
-    print("🤖 Answer:", answer)
+
+    typer.secho(f"\n🔎 Current project: {project}", fg="cyan", bold=True)
+    typer.secho(f"🧠 Question: {question}\n", fg="magenta")
+
+    # Load the FAISS index
+    try:
+        vectorstore = store_mgr.load(os.path.join(path, "faiss_index"), allow_dangerous_deserialization=True)
+        typer.secho("✅ Vector index loaded successfully.\n", fg="green")
+    except Exception:
+        typer.secho("❌ No FAISS index found. Use `rpl upload` to add documents first.", fg="red", bold=True)
+        raise typer.Exit()
+
+    # 🔌 Use the QueryEngine handler
+    try:
+        engine = QueryEngine.QueryEngine(vectorstore, top_k=top_k)
+        response = engine.ask(question)
+
+        answer = response.strip() if isinstance(response, str) else response.get("result", "").strip()
+        typer.secho("\n🤖 Answer:\n", fg="green", bold=True)
+        typer.echo(answer)
+
+    except Exception as e:
+        typer.secho(f"\n❌ Query failed: {e}", fg="red", bold=True)
+
 
 
 # === Command: Hybrid FAISS + BM25 Retrieval ===
 @app.command()
-def hybrid(query: str, k: int = 5):
+def hybrid(query: str, k: int = 5, export: str = typer.Option(None, help="Export format: json, bib, tex")):
+    """Run a hybrid search (BM25 + vector) across uploaded documents."""
     project = ProjectContext.current()
     path = os.path.join(PROJECTS_DIR, project)
     uploads_dir = os.path.join(path, "uploads")
     meta_path = os.path.join(path, "metadata.json")
 
-    # Reload and chunk all uploaded docs
+    typer.secho(f"\n🔎 Hybrid search in project: {project}", fg="cyan", bold=True)
+    typer.secho(f"🔍 Query: {query}", fg="magenta")
+
+    # Load and chunk all uploaded docs
     all_docs = []
     with open(meta_path, "r") as f:
         meta = json.load(f)
 
-    for entry in meta["files"]:
+    for entry in meta.get("files", []):
         file_path = os.path.join(uploads_dir, entry["file_name"])
         if not os.path.exists(file_path):
-            print(f"⚠️ Skipping missing file: {file_path}")
+            typer.secho(f"⚠️  Skipping missing file: {file_path}", fg="yellow")
             continue
         docs = doc_loader.load(file_path)
         chunks = chunker.chunk(docs)
@@ -172,13 +338,19 @@ def hybrid(query: str, k: int = 5):
         all_docs.extend(chunks)
 
     if not all_docs:
-        raise typer.Exit("❌ No documents loaded for hybrid search.")
+        typer.secho("❌ No documents found to run hybrid search.", fg="red")
+        raise typer.Exit()
 
+    # Build BM25 + FAISS retrievers
     bm25_retriever = BM25Retriever.from_documents(all_docs)
     bm25_retriever.k = k
 
-    vectorstore = store_mgr.load(os.path.join(path, "faiss_index"), allow_dangerous_deserialization=True)
-    faiss_retriever = vectorstore.as_retriever(search_kwargs={"k": k})
+    try:
+        vectorstore = store_mgr.load(os.path.join(path, "faiss_index"), allow_dangerous_deserialization=True)
+        faiss_retriever = vectorstore.as_retriever(search_kwargs={"k": k})
+    except Exception:
+        typer.secho("❌ Could not load FAISS index. Please run `rpl upload` first.", fg="red")
+        raise typer.Exit()
 
     hybrid = EnsembleRetriever(
         retrievers=[faiss_retriever, bm25_retriever],
@@ -186,12 +358,35 @@ def hybrid(query: str, k: int = 5):
     )
 
     results = hybrid.get_relevant_documents(query)
-    print(f"\n🔍 Results for: '{query}'\n")
+    # Format results into exportable dictionaries
+    results_data = [{
+        "source": doc.metadata.get("source", "unknown"),
+        "content": doc.page_content.strip()
+    } for doc in results]
+
+    typer.secho(f"\n📄 Top {k} hybrid-matched chunks:\n", fg="green", bold=True)
+
     for i, doc in enumerate(results, 1):
         source = doc.metadata.get("source", "unknown")
-        content = doc.page_content.strip().replace("\n", " ")[:300]
-        print(f"[{i}] 📄 {source}")
-        print(f"    {content}\n")
+        preview = doc.page_content.strip().replace("\n", " ")[:300]
+        typer.secho(f"{i}. 📁 Source: {source}", fg="cyan")
+        typer.echo(f"   📄 {preview}\n")
+    
+    if export:
+        formatter = Export.ExportFormatter(results_data)
+        if export == "json":
+            path = formatter.save_json()
+        elif export == "bib":
+            path = formatter.save_bib()
+        elif export == "tex":
+            path = formatter.save_tex()
+        else:
+            typer.secho("❌ Invalid export format. Use: json, bib, tex", fg="red")
+            raise typer.Exit()
+        typer.secho(f"💾 Exported to {path}", fg="green")
+
+    typer.secho("✅ Hybrid search complete.\n", fg="green", bold=True)
+
 
 
 # === Command: Push (Preview sync — future API upload) ===
@@ -219,3 +414,4 @@ doc_loader = DocumentLoader.DocumentLoader()
 chunker = Chunker.TextChunker(chunk_size=500, chunk_overlap=50)
 embedder = Embedder.Embedder(os.environ["OPENAI_API_KEY"])
 store_mgr = VectorStore.VectorStoreManager(embedder.model)
+

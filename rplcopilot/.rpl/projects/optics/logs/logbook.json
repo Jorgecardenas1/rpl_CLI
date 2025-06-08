@@ -1,0 +1,56 @@
+[
+  {
+    "title": "doc1",
+    "notes": "this experiment measured the Ghz band",
+    "summary": "This experiment measured the GHz band, but no specific details about the experiment or its purpose were provided. No additional information is available to summarize.",
+    "tags": [
+      "experiment",
+      "GHz",
+      "GHZ",
+      "band",
+      "measured"
+    ],
+    "related": [],
+    "timestamp": "2025-06-07T21:29:47.211729"
+  },
+  {
+    "title": "doc1",
+    "notes": "this experiment measured the Ghz band",
+    "summary": "This experiment measured frequencies in the Gigahertz (GHz) range. No further information is provided about the experiment or its results.",
+    "tags": [
+      "GHZ"
+    ],
+    "related": [],
+    "timestamp": "2025-06-07T21:30:33.009462"
+  },
+  {
+    "title": "doc1",
+    "notes": "this experiment measured the Ghz band",
+    "summary": "This experiment measures the GHz band, but no further details are given about the experiment's purpose or results.",
+    "tags": [
+      "Band",
+      "Frequency",
+      "Measurement",
+      "Experiment",
+      "GHZ",
+      "GHz"
+    ],
+    "related": [],
+    "timestamp": "2025-06-07T21:39:08.724320"
+  },
+  {
+    "title": "doc1",
+    "notes": "this experiment measured the Ghz band",
+    "summary": "This experiment measured frequencies in the gigahertz (GHz) range. No further information is provided about the specifics of the experiment or results.",
+    "tags": [
+      "GHz",
+      "measured",
+      "experiment",
+      "frequencies",
+      "GHZ",
+      "gigahertz"
+    ],
+    "related": [],
+    "timestamp": "2025-06-07T22:19:51.962237"
+  }
+]

@@ -1,0 +1,42 @@
+[
+  {
+    "source": "Eugene Hecht - Optics-Pearson (2016).pdf",
+    "content": "234\t\nChapter 5\u2002 Geometrical Optics\nBecause many objects of interest to astronomers\u2014planets, \ngalaxies, nebulae, and so on\u2014are imaged as extended bodies, \nusing these as an adaptive-optics beacon is precluded. Still, if you \nwish to examine a galaxy, you could use a nearby star as a bea-\ncon. Unfortunately, however, there will frequently not be any \nstars in the vicinity that are bright enough for the purpose. One \nway to get around this limitation is to use a laserbeam to create an"
+  },
+  {
+    "source": "Eugene Hecht - Optics-Pearson (2016).pdf",
+    "content": "a set of apertures spaced at about h or less should produce nice \nfringes.\nModern Astronomical Interferometry\nToday Michelson\u2019s stellar interferometer has morphed into a \nvariety of magnificent ultra-high-resolution machines that are \nrevolutionizing ground-based astronomy, and promising to do \nthe same in space. The central issue is resolution, the ability to \ndistinguish details on distant objects. The resolution of a mirror- \nor lens-based image-forming telescope increases with its aper-"
+  },
+  {
+    "source": "Eugene Hecht - Optics-Pearson (2016).pdf",
+    "content": "significance, and the diffraction-limited system with an appre-\nciable field of view became a reality. The technique of ion bom-\nbardment polishing, in which one atom at a time is chipped \naway, was introduced to meet the need for extreme precision in \nthe preparation of optical elements. The use of single and mul-\ntilayer thin-film coatings (reflecting, antireflecting, etc.) be-\ncame commonplace (p. 435). Fiberoptics evolved into a practi-"
+  },
+  {
+    "source": "Eugene Hecht - Optics-Pearson (2016).pdf",
+    "content": "230\t\nChapter 5\u2002 Geometrical Optics\nbased optical telescope arrays are destined to contribute signifi-\ncantly to the way we see the Universe.\nCatadioptric Telescopes\nA combination of reflecting (catoptric) and refracting (dioptric) \nelements is called a catadioptric system. The best known of \nthese, although not the first, is the classic Schmidt optical sys-\ntem. We must treat it here, even if only briefly, because it repre-\nsents an important approach to the design of large-aperture, ex-"
+  },
+  {
+    "source": "Eugene Hecht - Optics-Pearson (2016).pdf",
+    "content": "*See L. A. Thompson, \u201cAdaptive Optics in Astronomy,\u201d Phys. Today 47, 24 (1994); \nJ. W. Hardy, \u201cAdaptive Optics,\u201d Sci. Am. 60 (June 1994); R. Q. Fugate and W. J. \nWild, \u201cUntwinkling the Stars\u2014Part I,\u201d Sky & Telescope 24 (May 1994); W. J. Wild \nand R. Q. Fugate, \u201cUntwinkling the Stars\u2014Part II,\u201d Sky & Telescope 20 (June \n1994).\nA 1-second exposure of 53j Ursa Major using a 1.5-m telescope at the \nPhillips Laboratory. (a) The ordinary uncompensated image is undecipher-"
+  },
+  {
+    "source": "Eugene Hecht - Optics-Pearson (2016).pdf",
+    "content": "case in astronomy and spectroscopy. For example, the star Sirius, \nwhich appears as the brightest star in the sky (it\u2019s in the constel-\nlation Canis Major\u2014the big dog), is actually one of a binary \nsystem. It\u2019s accompanied by a faint white dwarf as they both orbit \ntheir mutual center of mass. Because of the tremendous differ-\nence in brightness (104 to 1), the image of the faint companion, \nx\n0\n(a)\nAperture function\nf(x)\nk\n(b)\nElectric \ufb01eld\nF(k)\nk\n(c)\nIrradiance\nF2(k)"
+  },
+  {
+    "source": "Eugene Hecht - Optics-Pearson (2016).pdf",
+    "content": "cato of impacts that are random in space and time across the \nbeam.\nSuppose that we project a light pattern onto the screen; \nit might be a set of interference fringes or the image of a \nTABLE 3.1\u2002 \u2002 The Mean Photon Flux Density for a \nSampling of Common Sources\nLight \t\nMean Photon Flux Density \nSource\t\n\u03a6>A in units of (photons>s \u00b7 m2)\nLaserbeam (10 mW, He-Ne, \n  focused to 20 mm)\t\n1026\nLaserbeam (1 mW, He-Ne)\t\n1021\nBright sunlight\t\n1018\nIndoor light level\t\n1016\nTwilight\t\n1014\nMoonlight\t\n1012"
+  },
+  {
+    "source": "Dietrich Korsch (Auth.) - Reflective Optics-Academic Press (1991).pdf",
+    "content": "forming properties of reflecting conic sections of revolution. \n2.1 FERMAT'S PRINCIPLE \nThe theory of geometrical optics can be developed on the basis of a \nsingle hypothesis, known as Fermat's principle. Before we state this \nimportant postulate it is necessary to introduce certain definitions \nregarding light and the media through which it propagates. \nLight in geometrical optics is represented by individual rays that, \nin ordinary media, are represented by straight lines. An ordinary"
+  },
+  {
+    "source": "Dietrich Korsch (Auth.) - Reflective Optics-Academic Press (1991).pdf",
+    "content": "field of reflective optics and its importance have increased enor\u00ad\nmously. Therefore, but also because of the fundamental differences \nthat indeed exist between refractive and reflective optics, it is felt \nthat an exclusive treatment of all-reflective systems fills a long\u00ad\nstanding gap in the optics literature. \nA major objective of this book is to present a unified theory for the \nentire range of all-reflective imaging systems. To this end the"
+  },
+  {
+    "source": "Eugene Hecht - Optics-Pearson (2016).pdf",
+    "content": "of the key points in what is to follow is that optical elements \nfrequency. Accordingly, it would seem reasonable to design the \noptics preceding such detectors so that it provided the most con-\ntrast over this limited frequency range. It would clearly be un-\nnecessary and perhaps, as we shall see, even detrimental to select \na mating lens system merely because of its own high limit of \nresolution. Evidently, it would be more helpful to have some fig-"
+  }
+]

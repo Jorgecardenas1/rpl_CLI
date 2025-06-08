@@ -3,6 +3,7 @@ from langchain_community.docstore.in_memory import InMemoryDocstore
 from langchain_community.vectorstores import FAISS
 import faiss
 import numpy as np
+import os
 
 class VectorStoreManager:
     def __init__(self, embedding_model, normalize=True, index_type="FlatIP"):
@@ -62,6 +63,7 @@ class VectorStoreManager:
 
     def save(self, vectorstore, path):
         """Saves the FAISS vectorstore to disk at the given path."""
+        path = os.path.normpath(path)  # ✅ fix backslashes or slashes
         vectorstore.save_local(path)
 
     def load(self, path, allow_dangerous_deserialization=True):
