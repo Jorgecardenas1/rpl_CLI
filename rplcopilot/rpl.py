@@ -454,6 +454,77 @@ def digest(
 
     print(f"📄 Digest saved to: {outfile}")
 
+
+
+@app.command()
+def trace(
+    concept: str = typer.Argument(..., help="Concept or keyword to trace"),
+    k: int = 10,
+    format: str = typer.Option("md", help="Export format: md | json | bib"),
+):
+    """
+    Trace a concept across your project: finds where it's mentioned and in what context.
+    """
+    project = ProjectContext.current()
+    path = os.path.join(PROJECTS_DIR, project)
+    uploads_dir = os.path.join(path, "uploads")
+    meta_path = os.path.join(path, "metadata.json")
+
+    # --- Load metadata and files
+    if not os.path.exists(meta_path):
+        print("❌ No metadata found for this project.")
+        raise typer.Exit()
+
+    with open(meta_path, "r") as f:
+        metadata = json.load(f)
+
+    all_chunks = []
+    trace_results = []
+
+    for entry in metadata.get("files", []):
+        full_path = os.path.join(uploads_dir, entry["file_name"])
+        if not os.path.exists(full_path):
+            print(f"⚠️ Skipping missing file: {full_path}")
+            continue
+
+        docs = doc_loader.load(full_path)
+        chunks = chunker.chunk(docs)
+        for chunk in chunks:
+            chunk.metadata.update({
+                "source": entry["file_name"],
+                "uploaded_at": entry["uploaded_at"]
+            })
+        all_chunks.extend(chunks)
+
+    # --- Retrieve matching chunks with BM25
+    bm25 = BM25Retriever.from_documents(all_chunks)
+    bm25.k = k
+    matched_docs = bm25.get_relevant_documents(concept)
+
+    if not matched_docs:
+        print("📭 No matches found for:", concept)
+        raise typer.Exit()
+
+    # --- Prepare results
+    for doc in matched_docs:
+        trace_results.append({
+            "file": doc.metadata.get("source", "unknown"),
+            "uploaded": doc.metadata.get("uploaded_at", "unknown"),
+            "excerpt": doc.page_content.strip()[:300]
+        })
+
+    # --- Export or display
+    formatter = Formatters.DigestFormatter()
+    output = formatter.to_format(trace_results, format=format, mode="trace")
+
+    outfile = os.path.join(path, f"trace_{concept.replace(' ', '_')}.{format}")
+    with open(outfile, "w") as f:
+        f.write(output)
+
+    print(f"🔍 Found {len(trace_results)} matches for: '{concept}'")
+    print(f"📄 Saved trace to: {outfile}")
+
+
 # === Command: Push (Preview sync — future API upload) ===
 @app.command()
 def push():

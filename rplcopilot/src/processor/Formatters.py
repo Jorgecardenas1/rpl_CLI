@@ -2,7 +2,7 @@ from typing import List
 import textwrap
 
 class DigestFormatter:
-    def to_format(self, data: List[dict], format: str = "md") -> str:
+    def to_format(self, data: List[dict], format: str = "md",mode="trace") -> str:
         """
         Formats the digest data into Markdown, LaTeX, or plain text.
         """
@@ -15,15 +15,28 @@ class DigestFormatter:
         else:
             raise ValueError("Unsupported format: choose md | tex | txt")
 
-    def _to_markdown(self, data):
-        lines = ["# 📊 Ripple Copilot Digest\n"]
-        for entry in data:
-            lines.append(f"## 📄 {entry['file']}")
-            lines.append(f"🕒 Uploaded: `{entry['uploaded']}`\n")
-            lines.append(f"**Summary:**\n{textwrap.fill(entry['summary'], width=80)}\n")
-            lines.append(f"**Keywords:** `{', '.join(entry['keywords'])}`\n")
-            lines.append("---")
+    def _to_markdown(self, data, mode="digest"):
+        lines = []
+
+        if mode == "trace":
+            lines.append("# 🧠 Ripple Trace Report\n")
+            for i, entry in enumerate(data, 1):
+                lines.append(f"## [{i}] 📄 {entry.get('file', 'unknown')}")
+                lines.append(f"🕒 Uploaded: `{entry.get('uploaded', 'unknown')}`")
+                lines.append(f"**Excerpt:**\n> {entry.get('excerpt', '[No content]')}\n")
+                lines.append("---")
+        else:
+            lines.append("# 📊 Ripple Digest\n")
+            for entry in data:
+                lines.append(f"## 📄 {entry.get('file', 'unknown')}")
+                lines.append(f"🕒 Uploaded: `{entry.get('uploaded', 'unknown')}`")
+                lines.append(f"**Summary:**\n{entry.get('summary', '[No summary]')}")
+                lines.append(f"**Keywords:** `{', '.join(entry.get('keywords', []))}`")
+                lines.append("---")
+
         return "\n".join(lines)
+
+
 
     def _to_text(self, data):
         lines = ["RIPPLE DIGEST REPORT\n"]
