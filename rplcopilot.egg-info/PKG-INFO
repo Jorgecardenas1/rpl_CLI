@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: rplcopilot
-Version: 0.1.1
+Version: 0.1.6
 Summary: AI-powered lab assistant CLI
 Home-page: https://github.com/Jorgecardenas1/rplcopilot
 Author: Jorge Hernan Cardenas
@@ -14,6 +14,14 @@ Requires-Dist: langchain
 Requires-Dist: langchain-openai
 Requires-Dist: faiss-cpu
 Requires-Dist: rich
+Requires-Dist: langchain-community
+Requires-Dist: pypdf
+Requires-Dist: rank_bm25
+Requires-Dist: unstructured
+Requires-Dist: pdf2image
+Requires-Dist: pdfminer
+Requires-Dist: Pillow
+Requires-Dist: pymupdf
 
 pip install -e .
 rpl init

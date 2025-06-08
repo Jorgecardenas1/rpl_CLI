@@ -14,6 +14,7 @@ from langchain.retrievers import EnsembleRetriever
 from langchain_community.retrievers import BM25Retriever
 from langchain_openai import ChatOpenAI
 from langchain_core.documents import Document
+from datetime import datetime, timedelta
 
 # Typer CLI instance
 app = typer.Typer()
@@ -24,6 +25,7 @@ sys.path.append(str(Path(__file__).resolve().parent / "src"))
 # Local modules
 from processor import DocumentLoader, Chunker, Embedder, VectorStore, QueryEngine
 from processor import Semantic,Export
+from processor import Formatters
 
 
 from processor.project_vector import ProjectVectorManager
@@ -120,8 +122,11 @@ def log(
         typer.secho(f"⚠️ Semantic enrichment failed: {e}", fg="red")
 
     # Combine tags
-    combined_tags = list(set([t.strip() for t in tags.split(",")] + enriched_tags)) if tags else enriched_tags
-
+    if tags:
+        user_tags = [t.strip() for t in tags.split(",")]
+        combined_tags = list(set(user_tags + enriched_tags))
+    else:
+        combined_tags = enriched_tags
     # Save log
     entry = {
         "title": title,
@@ -160,7 +165,7 @@ def log(
 
 # === Command: List Projects ===
 @app.command()
-def list():
+def ls():
     """List all initialized projects."""
     projects = os.listdir(PROJECTS_DIR)
     if not projects:
@@ -388,6 +393,66 @@ def hybrid(query: str, k: int = 5, export: str = typer.Option(None, help="Export
     typer.secho("✅ Hybrid search complete.\n", fg="green", bold=True)
 
 
+@app.command()
+def digest(
+    last: str = typer.Option("7d", help="Time window to include (e.g. 3d, 1w, 1m)"),
+    format: str = typer.Option("md", help="Export format: md | tex | pdf"),
+):
+    """Generate a digest summary of recent uploads."""
+    project = ProjectContext.current()
+    path = os.path.join(PROJECTS_DIR, project)
+    meta_path = os.path.join(path, "metadata.json")
+    uploads_dir = os.path.join(path, "uploads")
+
+    # --- Parse time window
+    unit = last[-1]
+    count = int(last[:-1])
+    now = datetime.utcnow()
+    delta = {"d": timedelta(days=1), "w": timedelta(weeks=1), "m": timedelta(days=30)}.get(unit, timedelta(days=7))
+    cutoff = now - (count * delta)
+
+    # --- Load metadata
+    with open(meta_path, "r") as f:
+        metadata = json.load(f)
+
+    recent_files = [
+        f for f in metadata["files"]
+        if datetime.fromisoformat(f["uploaded_at"]) > cutoff
+    ]
+
+    if not recent_files:
+        print("📭 No recent files found in the last", last)
+        raise typer.Exit()
+
+    # --- Semantic engine
+    vectorstore = store_mgr.load(os.path.join(path, "faiss_index"), allow_dangerous_deserialization=True)
+    semantic_engine = Semantic.SemanticEngine(vectorstore)
+
+    # --- Collect digests
+    digest_data = []
+
+    for f in recent_files:
+        full_path = os.path.join(uploads_dir, f["file_name"])
+        docs = doc_loader.load(full_path)
+        text = "\n".join([doc.page_content for doc in docs])
+        summary, keywords = semantic_engine.enrich_metadata(text)
+
+        digest_data.append({
+            "file": f["file_name"],
+            "uploaded": f["uploaded_at"],
+            "summary": summary,
+            "keywords": keywords
+        })
+
+    # --- Format output
+    formatter = Formatters.DigestFormatter()
+    report = formatter.to_format(digest_data, format=format)
+
+    outfile = os.path.join(path, f"digest_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.{format}")
+    with open(outfile, "w") as f:
+        f.write(report)
+
+    print(f"📄 Digest saved to: {outfile}")
 
 # === Command: Push (Preview sync — future API upload) ===
 @app.command()

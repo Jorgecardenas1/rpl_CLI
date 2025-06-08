@@ -91,12 +91,12 @@ rpl hybrid "mid-IR optics" --export tex
 
 ---
 
-### 🔹 `rpl list`
+### 🔹 `rpl ls`
 
 List all available `.rpl` projects found in subdirectories.
 
 ```bash
-rpl list
+rpl ls
 ```
 
 ---

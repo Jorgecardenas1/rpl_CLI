@@ -10,3 +10,17 @@ rplcopilot.egg-info/entry_points.txt
 rplcopilot.egg-info/requires.txt
 rplcopilot.egg-info/top_level.txt
 rplcopilot/src/__init__.py
+rplcopilot/src/processor/Chunker.py
+rplcopilot/src/processor/DocumentLoader.py
+rplcopilot/src/processor/Embedder.py
+rplcopilot/src/processor/QueryEngine.py
+rplcopilot/src/processor/VectorStore.py
+rplcopilot/src/processor/__init__.py
+rplcopilot/src/processor/intent_detector.py
+rplcopilot/src/processor/orchestrator.py
+rplcopilot/src/processor/project_vector.py
+rplcopilot/src/processor/handlers/__init__.py
+rplcopilot/src/processor/handlers/base.py
+rplcopilot/src/processor/handlers/create_project.py
+rplcopilot/src/processor/handlers/log_experiment.py
+rplcopilot/src/processor/handlers/upload_file.py
