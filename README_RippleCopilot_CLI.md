@@ -6,6 +6,8 @@
   <a href="https://rplcopilot-docs.vercel.app"><img alt="Docs" src="https://img.shields.io/badge/docs-online-orange"></a>
 </p>
 
+
+
 > Your AI-powered lab assistant, right in the terminal.  
 > Log experiments, upload documents, and build a smart, searchable knowledge base — with zero friction.
 
@@ -24,6 +26,9 @@ chmod +x rpl.py
 ln -s $(pwd)/rpl.py /usr/local/bin/rpl
 ```
 
+
+
+
 ---
 
 ## 🧪 Commands
@@ -36,11 +41,34 @@ Create a new project in the current directory.
 rpl init quantum --description "Quantum film experiments"
 ```
 
+## 📁 Project Structure
+
+```
+your-lab-project/
+└── .rpl/
+    ├── config.json               # Global pointer to current project
+    └── projects/
+        └── <project-name>/
+            ├── metadata.json     # File info + summaries
+            ├── logs/             # Individual experiment logs
+            ├── uploads/          # Uploaded raw files
+            └── faiss_index/      # Vector store
+```
+
 ---
+
 
 ### 🔹 `rpl log`
 
-Log an experiment with title, notes, and tags.
+Log an experiment with rich metadata.
+Flags:
+
+--title – Title of the experiment (required)
+
+--notes – Full notes or description
+
+--tags – Comma-separated tags or keywords
+
 
 ```bash
 rpl log --title "Day 1" --notes "Tested sapphire substrate." --tags "GHz,permittivity"
@@ -88,6 +116,44 @@ rpl hybrid "sapphire films" --export json
 rpl hybrid "quantum well" --export bib
 rpl hybrid "mid-IR optics" --export tex
 ```
+⚖️ Combines symbolic + vector retrieval. Great for exact terms and fuzzy matches.
+
+
+
+---
+### 🔹 `rpl digest `
+
+Generate a digest-style summary of uploaded files.
+Includes:
+
+📄 File name
+
+🧠 Summary (LLM-generated)
+
+🏷️ Keywords
+
+```bash
+rpl digest --format md
+```
+
+---
+
+### 🔹 `rpl trace "<concept>" `
+
+Trace a concept or keyword across all indexed files.
+Flags:
+
+--k – Number of top documents (default: 10)
+
+--format – Export format: md, json, or bib
+
+```bash
+rpl trace "sapphire substrate" --format md
+
+```
+🔍 Outputs all occurrences with context, source, and exportable summary.
+
+
 
 ---
 
@@ -123,26 +189,17 @@ rpl current
 
 ### 🔹 `rpl push`
 
-Simulate syncing with a backend. Shows size and structure of payload.
+Prepares syncing payloads for a remote API.
+Reports:
+
+📁 Files to sync
+
+📚 Metadata size
+
+🧠 Embeddings (optional)
 
 ```bash
 rpl push
-```
-
----
-
-## 📁 Project Structure
-
-```
-your-lab-project/
-└── .rpl/
-    ├── config.json               # Global pointer to current project
-    └── projects/
-        └── <project-name>/
-            ├── metadata.json     # File info + summaries
-            ├── logs/             # Individual experiment logs
-            ├── uploads/          # Uploaded raw files
-            └── faiss_index/      # Vector store
 ```
 
 ---
@@ -159,6 +216,10 @@ your-lab-project/
 
 - `rpl pull` — download remote project
 - `rpl auth` — API key authentication
+- `rpl dashboard` - interactive Streamlit viewer
+- `rpl bib` - manage BibTeX citations + export
+
+
 - Web UI — view, filter, and explore experiments
 - Multi-user collaboration & versioning
 
@@ -166,9 +227,12 @@ your-lab-project/
 
 ## 👩‍🔬 Ideal For:
 
-- Materials science labs
-- Optics, physics, and quantum research
+- Scientific labs
+- Industrial research
+- Long term experiment tracking
 - Biotech, nanotech, or AI-assisted experiments
+- Research labs and PhDs
+- For student to learn the research workflow
 
 ---
 
