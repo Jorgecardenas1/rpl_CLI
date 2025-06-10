@@ -65,11 +65,11 @@ class ProjectContext:
 
 # === Command: Init a New Project ===
 @app.command()
-def init(project_name: str):
+def init(project_name: str, description: str = typer.Option(..., help="Description of the project")):
     path = os.path.join(PROJECTS_DIR, project_name)
     os.makedirs(os.path.join(path, "uploads"), exist_ok=True)
     with open(os.path.join(path, "metadata.json"), "w") as f:
-        json.dump({"project": project_name, "files": []}, f, indent=2)
+        json.dump({"project": project_name, "description": description, "files": []}, f, indent=2)
     ProjectContext.set(project_name)
     print(f"✅ Initialized project '{project_name}'.")
 

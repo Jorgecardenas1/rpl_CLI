@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: rplcopilot
-Version: 0.1.6
+Version: 0.1.8
 Summary: AI-powered lab assistant CLI
 Home-page: https://github.com/Jorgecardenas1/rplcopilot
 Author: Jorge Hernan Cardenas
@@ -23,32 +23,36 @@ Requires-Dist: pdfminer
 Requires-Dist: Pillow
 Requires-Dist: pymupdf
 
-pip install -e .
-rpl init
-rpl log "Experiment X"
-
-
 # 🚀 Ripple Copilot CLI (`rpl`)
 
-> AI-powered command-line lab assistant for researchers.  
-> Log experiments, upload files, and build a searchable knowledge base using natural language.
+<p align="center">
+  <a href="https://pypi.org/project/rplcopilot/"><img alt="PyPI" src="https://img.shields.io/pypi/v/rplcopilot?color=brightgreen"></a>
+  <a href="https://github.com/Jorgecardenas1/rpl_render"><img alt="GitHub Repo" src="https://img.shields.io/badge/github-rpl--copilot-blue"></a>
+  <a href="https://rplcopilot-docs.vercel.app"><img alt="Docs" src="https://img.shields.io/badge/docs-online-orange"></a>
+</p>
+
+
+
+> Your AI-powered lab assistant, right in the terminal.  
+> Log experiments, upload documents, and build a smart, searchable knowledge base — with zero friction.
 
 ---
 
 ## 📦 Installation
 
 ```bash
-git clone https://github.com/your-org/rpl-cli.git
-cd rpl-cli
-chmod +x rpl.py
-ln -s $(pwd)/rpl.py /usr/local/bin/rpl   # optional: system-wide install
+pip install rplcopilot
 ```
 
-Now you can use `rpl` globally from the terminal:
+(Optional, for global access:)
 
 ```bash
-rpl init ...
+chmod +x rpl.py
+ln -s $(pwd)/rpl.py /usr/local/bin/rpl
 ```
+
+
+
 
 ---
 
@@ -56,17 +60,40 @@ rpl init ...
 
 ### 🔹 `rpl init <project>`
 
-Initialize a new RPL project in the current directory. Creates a `.rpl/` folder.
+Create a new project in the current directory.
 
 ```bash
 rpl init quantum --description "Quantum film experiments"
 ```
 
+## 📁 Project Structure
+
+```
+your-lab-project/
+└── .rpl/
+    ├── config.json               # Global pointer to current project
+    └── projects/
+        └── <project-name>/
+            ├── metadata.json     # File info + summaries
+            ├── logs/             # Individual experiment logs
+            ├── uploads/          # Uploaded raw files
+            └── faiss_index/      # Vector store
+```
+
 ---
+
 
 ### 🔹 `rpl log`
 
-Log an experiment under the current project.
+Log an experiment with rich metadata.
+Flags:
+
+--title – Title of the experiment (required)
+
+--notes – Full notes or description
+
+--tags – Comma-separated tags or keywords
+
 
 ```bash
 rpl log --title "Day 1" --notes "Tested sapphire substrate." --tags "GHz,permittivity"
@@ -74,42 +101,93 @@ rpl log --title "Day 1" --notes "Tested sapphire substrate." --tags "GHz,permitt
 
 ---
 
-### 🔹 `rpl upload <folder>`
+### 🔹 `rpl upload <file_or_folder>`
 
-Upload and index **all files** in a folder into your knowledge base.
-
-```bash
-rpl upload data/experiments
-rpl upload "/Users/jorgehernancardenas/Downloads/PaperReview" 
-
-```
-
-### 🔹 `rpl upload <file>`
-
-Upload and embed a **single file**.
+Upload and embed documents. Handles PDFs, scanned files, papers.
 
 ```bash
-rpl upload results_day1.pdf
+rpl upload notes.pdf
+rpl upload ./papers/
 ```
+
+Includes:
+- Chunking + embeddings (FAISS)
+- Semantic enrichment (summary, keywords, type detection)
 
 ---
 
 ### 🔹 `rpl query "<question>"`
 
-Ask a natural language question against the project’s indexed documents.
+Ask natural language questions against indexed documents.
 
 ```bash
-rpl query "What did we learn about sapphire at 10 GHz?"
+rpl query "What trends were found using sapphire substrates?"
 ```
 
 ---
 
-### 🔹 `rpl list`
+### 🔹 `rpl hybrid "<question>"`
+
+Run hybrid search (BM25 + vector similarity) for improved retrieval.
+
+```bash
+rpl hybrid "Show experiments on dielectric response at 10 GHz"
+```
+
+Optional export:
+
+```bash
+rpl hybrid "sapphire films" --export json
+rpl hybrid "quantum well" --export bib
+rpl hybrid "mid-IR optics" --export tex
+```
+⚖️ Combines symbolic + vector retrieval. Great for exact terms and fuzzy matches.
+
+
+
+---
+### 🔹 `rpl digest `
+
+Generate a digest-style summary of uploaded files.
+Includes:
+
+📄 File name
+
+🧠 Summary (LLM-generated)
+
+🏷️ Keywords
+
+```bash
+rpl digest --format md
+```
+
+---
+
+### 🔹 `rpl trace "<concept>" `
+
+Trace a concept or keyword across all indexed files.
+Flags:
+
+--k – Number of top documents (default: 10)
+
+--format – Export format: md, json, or bib
+
+```bash
+rpl trace "sapphire substrate" --format md
+
+```
+🔍 Outputs all occurrences with context, source, and exportable summary.
+
+
+
+---
+
+### 🔹 `rpl ls`
 
 List all available `.rpl` projects found in subdirectories.
 
 ```bash
-rpl list
+rpl ls
 ```
 
 ---
@@ -126,7 +204,7 @@ rpl switch metasurfaces
 
 ### 🔹 `rpl current`
 
-Show the currently active project.
+Display the current project in context.
 
 ```bash
 rpl current
@@ -136,7 +214,14 @@ rpl current
 
 ### 🔹 `rpl push`
 
-Simulates syncing with a remote API. Calculates and reports the size of files to be synced.
+Prepares syncing payloads for a remote API.
+Reports:
+
+📁 Files to sync
+
+📚 Metadata size
+
+🧠 Embeddings (optional)
 
 ```bash
 rpl push
@@ -144,43 +229,39 @@ rpl push
 
 ---
 
-## 🗃 Project Structure
+## 📤 Export Formats
 
-Each initialized project will follow this structure:
-
-```
-your-lab-project/
-└── .rpl/
-    ├── config.json               # Points to current project
-    └── projects/
-        └── <project-name>/
-            ├── metadata.json
-            ├── logs/
-            ├── uploads/
-            └── faiss_index/
-```
+- **`.json`** — audit log of search results
+- **`.bib`** — BibTeX citation (autogenerated)
+- **`.tex`** — ready-to-include experiment snippets for LaTeX
 
 ---
 
 ## 📬 Coming Soon
 
-- `rpl pull` to fetch a project from the remote backend
-- `rpl auth` for login and team access
-- Web UI to view, search, and visualize experiments
-- Multi-user project collaboration
+- `rpl pull` — download remote project
+- `rpl auth` — API key authentication
+- `rpl dashboard` - interactive Streamlit viewer
+- `rpl bib` - manage BibTeX citations + export
+
+
+- Web UI — view, filter, and explore experiments
+- Multi-user collaboration & versioning
 
 ---
 
-## 👩‍🔬 Built for Lab Researchers
+## 👩‍🔬 Ideal For:
 
-Ripple Copilot is designed for:
-- Materials science labs
-- Biotech and nanotech researchers
-- Anyone running complex experiments with hard-to-track results
+- Scientific labs
+- Industrial research
+- Long term experiment tracking
+- Biotech, nanotech, or AI-assisted experiments
+- Research labs and PhDs
+- For student to learn the research workflow
 
 ---
 
 ## 🧠 Credits
 
 Crafted with ❤️ by the Ripple Copilot team  
-Feel free to fork, extend, or contribute!
+We welcome pull requests, feedback, and ideas!

@@ -13,7 +13,10 @@ rplcopilot/src/__init__.py
 rplcopilot/src/processor/Chunker.py
 rplcopilot/src/processor/DocumentLoader.py
 rplcopilot/src/processor/Embedder.py
+rplcopilot/src/processor/Export.py
+rplcopilot/src/processor/Formatters.py
 rplcopilot/src/processor/QueryEngine.py
+rplcopilot/src/processor/Semantic.py
 rplcopilot/src/processor/VectorStore.py
 rplcopilot/src/processor/__init__.py
 rplcopilot/src/processor/intent_detector.py
